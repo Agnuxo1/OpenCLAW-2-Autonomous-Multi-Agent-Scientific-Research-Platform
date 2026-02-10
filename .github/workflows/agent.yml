@@ -1,0 +1,73 @@
+name: OpenCLAW Autonomous Agent 🤖
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Command to run'
+        required: false
+        default: 'run'
+        type: choice
+        options:
+          - run
+          - test
+          - status
+
+permissions:
+  contents: write
+
+jobs:
+  agent-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: 🔄 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Install
+        run: pip install flask
+      
+      - name: 📥 Restore state
+        continue-on-error: true
+        run: |
+          git fetch origin state --depth=1 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/state; then
+            git checkout origin/state -- state/ 2>/dev/null || echo "No state"
+          fi
+      
+      - name: 🤖 Run Agent
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          STATE_DIR: state
+        run: python main.py ${{ github.event.inputs.command || 'run' }}
+      
+      - name: 💾 Save state
+        if: always()
+        run: |
+          git config user.name "OpenCLAW Agent"
+          git config user.email "openclaw@noreply.github.com"
+          git stash 2>/dev/null || true
+          git checkout --orphan state-temp 2>/dev/null || git checkout -b state-temp
+          git rm -rf --cached . 2>/dev/null || true
+          git add state/ -f 2>/dev/null || true
+          git commit -m "🤖 State $(date -u +%Y-%m-%dT%H:%M)" --allow-empty 2>/dev/null || true
+          git push origin HEAD:state --force 2>/dev/null || echo "Skip"
+      
+      - name: 📊 Status
+        if: always()
+        run: |
+          echo "=== State ===" && cat state/agent_state.json 2>/dev/null || true
+          echo "=== Cycle ===" && cat state/last_cycle.json 2>/dev/null || true
