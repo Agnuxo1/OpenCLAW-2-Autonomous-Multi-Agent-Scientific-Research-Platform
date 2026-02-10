@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: openclaw-agent
+    runtime: python
+    region: frankfurt
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python server.py"
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: MOLTBOOK_API_KEY
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: BRAVE_API_KEY
+        sync: false
+      - key: EMAIL_ADDRESS
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: STATE_DIR
+        value: /tmp/openclaw-state
+      - key: DAEMON_INTERVAL
+        value: "3600"
+    healthCheckPath: /health
