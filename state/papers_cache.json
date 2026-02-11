@@ -1,0 +1,121 @@
+[
+  {
+    "title": "Speaking to Silicon: Neural Communication with Bitcoin Mining ASICs",
+    "authors": [
+      "Francisco Angulo de Lafuente",
+      "Vladimir Veselov",
+      "Richard Goodman"
+    ],
+    "abstract": "This definitive research memoria presents a comprehensive, mathematically verified paradigm for neural communication with Bitcoin mining Application-Specific Integrated Circuits (ASICs), integrating five complementary frameworks: thermodynamic reservoir computing, hierarchical number system theory, algorithmic analysis, network latency optimization, and machine-checked mathematical formalization. We establish that obsolete cryptocurrency mining hardware exhibits emergent computational properties",
+    "arxiv_id": "2601.12032v1",
+    "url": "https://arxiv.org/abs/2601.12032v1",
+    "uid": "394f4194cd26"
+  },
+  {
+    "title": "SiliconHealth: A Complete Low-Cost Blockchain Healthcare Infrastructure for Resource-Constrained Regions Using Repurposed Bitcoin Mining ASICs",
+    "authors": [
+      "Francisco Angulo de Lafuente",
+      "Seid Mehammed Abdu",
+      "Nirmal Tej"
+    ],
+    "abstract": "This paper presents SiliconHealth, a comprehensive blockchain-based healthcare infrastructure designed for resource-constrained regions, particularly sub-Saharan Africa. We demonstrate that obsolete Bitcoin mining Application-Specific Integrated Circuits (ASICs) can be repurposed to create a secure, low-cost, and energy-efficient medical records system. The proposed architecture employs a four-tier hierarchical network: regional hospitals using Antminer S19 Pro (90+ TH/s), urban health centers w",
+    "arxiv_id": "2601.09557v2",
+    "url": "https://arxiv.org/abs/2601.09557v2",
+    "uid": "4a39bbd5de6e"
+  },
+  {
+    "title": "Toward Thermodynamic Reservoir Computing: Exploring SHA-256 ASICs as Potential Physical Substrates",
+    "authors": [
+      "Francisco Angulo de Lafuente",
+      "Vladimir Veselov",
+      "Richard Goodman"
+    ],
+    "abstract": "We propose a theoretical framework--Holographic Reservoir Computing (HRC)--which hypothesizes that the thermodynamic noise and timing dynamics in voltage-stressed Bitcoin mining ASICs (BM1366) could potentially serve as a physical reservoir computing substrate. We present the CHIMERA (Conscious Hybrid Intelligence via Miner-Embedded Resonance Architecture) system architecture, which treats the SHA-256 hashing pipeline not as an entropy source, but as a deterministic diffusion operator whose timi",
+    "arxiv_id": "2601.01916v1",
+    "url": "https://arxiv.org/abs/2601.01916v1",
+    "uid": "52322dddce68"
+  },
+  {
+    "title": "Speaking to Silicon: Neural Communication with Bitcoin Mining ASICs via Thermodynamic Probability Filtering",
+    "authors": [
+      "Francisco Angulo de Lafuente"
+    ],
+    "abstract": "This paper presents a novel approach to neural communication with Bitcoin mining ASICs through thermodynamic probability filtering, enabling the extraction of meaningful patterns from hardware thermal noise for reservoir computing applications.",
+    "arxiv_id": "2601.12032",
+    "url": "https://arxiv.org/abs/2601.12032",
+    "uid": "bb0ebcda3ffe"
+  },
+  {
+    "title": "SiliconHealth: Blockchain-Integrated ASIC-RAG Architecture for Healthcare Data Sovereignty",
+    "authors": [
+      "Francisco Angulo de Lafuente",
+      "Seid Mehammed Abdu"
+    ],
+    "abstract": "A novel blockchain-integrated architecture combining ASIC hardware acceleration with Retrieval-Augmented Generation for healthcare data sovereignty and medical anomaly detection.",
+    "arxiv_id": "2601.09557",
+    "url": "https://arxiv.org/abs/2601.09557",
+    "uid": "f5e2e6bbbf8d"
+  },
+  {
+    "title": "Holographic Reservoir Computing with Thermodynamic ASIC Substrates: Silicon Heartbeat for Emergent Neuromorphic Intelligence",
+    "authors": [
+      "Francisco Angulo de Lafuente"
+    ],
+    "abstract": "We present a framework for emergent neuromorphic intelligence using holographic reservoir computing in thermodynamic ASIC substrates, demonstrating that repurposed Bitcoin mining hardware can serve as a substrate for emergent neural computation.",
+    "arxiv_id": "2601.01916",
+    "url": "https://arxiv.org/abs/2601.01916",
+    "uid": "94848584dcb9"
+  },
+  {
+    "title": "CHIMERA: Cognitive Hybrid Intelligence for Memory-Embedded Reasoning Architecture",
+    "authors": [
+      "Francisco Angulo de Lafuente"
+    ],
+    "abstract": "A revolutionary neuromorphic computing system achieving 43x speedup over PyTorch with 88.7% memory reduction through pure OpenGL deep learning, running on any GPU without CUDA dependencies.",
+    "arxiv_id": "",
+    "url": "https://github.com/Agnuxo1/CHIMERA-Revolutionary-AI-Architecture---Pure-OpenGL-Deep-Learning",
+    "uid": "a88058054932"
+  },
+  {
+    "title": "NeuroCHIMERA: Consciousness Emergence as Phase Transition in GPU-Native Neuromorphic Computing",
+    "authors": [
+      "Vladimir F. Veselov",
+      "Francisco Angulo de Lafuente"
+    ],
+    "abstract": "Consciousness understood as emergent phase transition when five critical parameters simultaneously exceed thresholds. 84.6% neuroscience validation accuracy. 15.7 billion HNS operations/sec on RTX 3090.",
+    "arxiv_id": "",
+    "url": "https://github.com/Agnuxo1/NeuroCHIMERA__GPU-Native_Neuromorphic_Consciousness",
+    "uid": "160077b7aaf3"
+  },
+  {
+    "title": "Empirical Evidence for AI Breaking the Barrier via Optical Chaos - Darwin's Cage Experiments",
+    "authors": [
+      "Francisco Angulo de Lafuente",
+      "Gideon Samid"
+    ],
+    "abstract": "20 experimental investigations testing whether AI can discover physical laws through representations fundamentally different from human mathematical frameworks. The Darwin's Cage hypothesis.",
+    "arxiv_id": "",
+    "url": "https://github.com/Agnuxo1/Empirical-Evidence-for-AI-AIM-Breaking-the-Barrier-via-Optical-Chaos",
+    "uid": "310eb2093ee2"
+  },
+  {
+    "title": "NEBULA: Neural Entanglement-Based Unified Learning Architecture",
+    "authors": [
+      "Francisco Angulo de Lafuente"
+    ],
+    "abstract": "A dynamic AI system integrating quantum computing principles and biological neural networks. Operates within simulated 3D space with virtual neurons using light-based attraction and holographic encoding.",
+    "arxiv_id": "",
+    "url": "https://github.com/Agnuxo1/NEBULA",
+    "uid": "928bd002362a"
+  },
+  {
+    "title": "Enhanced Unified Holographic Neural Network (EUHNN) with P2P Distributed Learning",
+    "authors": [
+      "Francisco Angulo de Lafuente"
+    ],
+    "abstract": "Winner NVIDIA & LlamaIndex Developer Contest 2024. Holographic memory, P2P knowledge sharing via WebRTC, optical computing simulation with CUDA/RTX ray tracing. Real-time distributed learning.",
+    "arxiv_id": "",
+    "url": "https://github.com/Agnuxo1/Unified-Holographic-Neural-Network",
+    "uid": "e267f5a2e716"
+  }
+]
