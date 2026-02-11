@@ -1,0 +1,109 @@
+name: "🌱 SEED Growth Cycle"
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Phase to run (all/harvest/train/evaluate)'
+        default: 'all'
+
+permissions:
+  contents: write
+
+env:
+  STATE_BRANCH: seed-state
+
+jobs:
+  seed-growth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: "🔄 Checkout code"
+        uses: actions/checkout@v4
+      
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: "📦 Install dependencies"
+        run: |
+          pip install -q huggingface_hub requests
+      
+      - name: "📥 Restore SEED state"
+        run: |
+          git fetch origin $STATE_BRANCH 2>/dev/null || true
+          if git show-ref --verify refs/remotes/origin/$STATE_BRANCH 2>/dev/null; then
+            git checkout origin/$STATE_BRANCH -- seed_state/ seed_data/ 2>/dev/null || true
+            echo "State restored"
+          else
+            echo "First run — no previous state"
+          fi
+          mkdir -p seed_state seed_data
+      
+      - name: "🌱 Run SEED Growth Cycle"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          python3 -c "
+          import logging, sys, json, os
+          logging.basicConfig(level=logging.INFO, stream=sys.stdout,
+                              format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+          
+          # Run the growth engine
+          from seed.growth_engine import GrowthEngine
+          
+          engine = GrowthEngine(
+              hf_token=os.environ.get('HF_TOKEN', ''),
+              state_dir='seed_state',
+              data_dir='seed_data'
+          )
+          
+          phase = '${{ github.event.inputs.phase || 'all' }}'
+          
+          if phase == 'all':
+              results = engine.run_cycle()
+          elif phase == 'harvest':
+              results = engine.harvest()
+          elif phase == 'train':
+              results = engine.train()
+          elif phase == 'evaluate':
+              results = engine.evaluate()
+          else:
+              results = engine.run_cycle()
+          
+          print(json.dumps(results, indent=2, default=str))
+          "
+      
+      - name: "📊 SEED Status"
+        run: |
+          echo "=== SEED State ==="
+          cat seed_state/cycle_log.json 2>/dev/null || echo "No cycle log yet"
+          echo ""
+          echo "=== Data Sizes ==="
+          wc -l seed_data/*.jsonl 2>/dev/null || echo "No data yet"
+          echo ""
+          echo "=== Growth Log ==="
+          cat seed_state/growth_log.json 2>/dev/null || echo "No growth log yet"
+      
+      - name: "💾 Save SEED state"
+        run: |
+          git config user.name "SEED Growth Bot"
+          git config user.email "seed@openclaw.dev"
+          
+          # Create or update state branch
+          git checkout --orphan temp-state 2>/dev/null || git checkout -b temp-state
+          git rm -rf --cached . 2>/dev/null || true
+          
+          # Only add state and data
+          git add seed_state/ seed_data/ -f 2>/dev/null || true
+          
+          CYCLE=$(python3 -c "import json; print(json.load(open('seed_state/cycle_log.json')).get('total_cycles',0))" 2>/dev/null || echo "0")
+          DATA=$(wc -l seed_data/*.jsonl 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+          
+          git commit -m "🌱 SEED cycle #${CYCLE} — ${DATA} training entries" --allow-empty
+          git push origin HEAD:$STATE_BRANCH --force
