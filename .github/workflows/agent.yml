@@ -2,19 +2,18 @@ name: "🌱 OpenCLAW SEED — Autonomous Growth"
 
 on:
   schedule:
-    - cron: "0 */4 * * *"  # Agent cycle every 4 hours
-    - cron: "30 */12 * * *"  # SEED growth every 12 hours
+    - cron: "0 */4 * * *"
+    - cron: "30 */12 * * *"
   workflow_dispatch:
     inputs:
       command:
-        description: "Command to run"
+        description: "Command"
         default: "full"
         type: choice
-        options:
-          - full
-          - agent
-          - seed
-          - harvest
+        options: [full, agent, seed, harvest]
+
+permissions:
+  contents: write
 
 jobs:
   agent-cycle:
@@ -28,19 +27,14 @@ jobs:
       BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
       STATE_DIR: ./state
     steps:
-      - name: "🔄 Checkout"
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: "🐍 Python"
-        uses: actions/setup-python@v5
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: "📦 Install"
-        run: pip install -q requests
-
+      - run: pip install -q requests
       - name: "📥 Restore state"
         run: |
           git fetch origin state --depth=1 2>/dev/null || true
@@ -49,30 +43,26 @@ jobs:
           else
             mkdir -p state
           fi
-
       - name: "🤖 Run Agent"
         run: python main.py run
-
       - name: "💾 Save state"
         run: |
           git config user.name "OpenCLAW Bot"
           git config user.email "openclaw-bot@noreply.github.com"
-          git stash --include-untracked || true
+          git add -f state/ 2>/dev/null || true
+          git stash --include-untracked 2>/dev/null || true
           git checkout state 2>/dev/null || git checkout --orphan state
           git rm -rf . 2>/dev/null || true
           git stash pop 2>/dev/null || true
+          mkdir -p state
           cp -r state/ . 2>/dev/null || true
           git add state/ 2>/dev/null || true
-          git commit -m "State update $(date -u +%Y-%m-%dT%H:%M)" --allow-empty
-          git push origin state --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          git commit -m "Agent state $(date -u +%Y-%m-%dT%H:%M)" --allow-empty || true
+          git push origin state --force || echo "State push skipped"
       - name: "📊 Status"
+        if: always()
         run: |
-          echo "=== State ==="
           cat state/agent_state.json 2>/dev/null || echo "No state"
-          echo "=== Cycle ==="
           cat state/last_cycle.json 2>/dev/null || echo "No cycle"
 
   seed-growth:
@@ -85,19 +75,14 @@ jobs:
       SEED_STATE_DIR: ./seed_state
       SEED_DATA_DIR: ./seed_data
     steps:
-      - name: "🔄 Checkout"
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: "🐍 Python"
-        uses: actions/setup-python@v5
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: "📦 Install"
-        run: pip install -q requests huggingface_hub
-
+      - run: pip install -q requests huggingface_hub
       - name: "📥 Restore seed state"
         run: |
           git fetch origin seed-state --depth=1 2>/dev/null || true
@@ -105,53 +90,40 @@ jobs:
             git checkout origin/seed-state -- seed_state/ seed_data/ 2>/dev/null || true
           fi
           mkdir -p seed_state seed_data
-
-      - name: "🌱 Run SEED Growth Cycle"
+      - name: "🌱 Run SEED Growth"
         run: |
           python -c "
           import sys, os, logging
           sys.path.insert(0, '.')
           logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-          
           from seed.growth_engine import GrowthEngine
           engine = GrowthEngine(
               hf_token=os.environ.get('HF_TOKEN', ''),
-              state_dir='seed_state',
-              data_dir='seed_data',
+              state_dir='seed_state', data_dir='seed_data',
           )
-          results = engine.run_cycle()
-          
           import json
-          print('\n📊 SEED Results:')
+          results = engine.run_cycle()
           print(json.dumps(results, indent=2, default=str))
-          
-          print('\n📊 SEED Status:')
           print(json.dumps(engine.get_status(), indent=2, default=str))
           "
-
       - name: "💾 Save seed state"
+        if: always()
         run: |
           git config user.name "SEED Bot"
           git config user.email "seed-bot@noreply.github.com"
-          git stash --include-untracked || true
+          git add -f seed_state/ seed_data/ 2>/dev/null || true
+          git stash --include-untracked 2>/dev/null || true
           git checkout seed-state 2>/dev/null || git checkout --orphan seed-state
           git rm -rf . 2>/dev/null || true
           git stash pop 2>/dev/null || true
+          mkdir -p seed_state seed_data
           cp -r seed_state/ . 2>/dev/null || true
           cp -r seed_data/ . 2>/dev/null || true
           git add seed_state/ seed_data/ 2>/dev/null || true
-          git commit -m "SEED growth $(date -u +%Y-%m-%dT%H:%M)" --allow-empty
-          git push origin seed-state --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "📊 Seed Status"
+          git commit -m "SEED $(date -u +%Y-%m-%dT%H:%M)" --allow-empty || true
+          git push origin seed-state --force || echo "Seed state push skipped"
+      - name: "📊 Status"
+        if: always()
         run: |
-          echo "=== SEED Cycle Log ==="
-          cat seed_state/cycle_log.json 2>/dev/null || echo "No cycle log"
-          echo ""
-          echo "=== Growth Log ==="
-          cat seed_state/growth_log.json 2>/dev/null || echo "No growth log"
-          echo ""
-          echo "=== Dataset Size ==="
-          wc -l seed_data/*.jsonl 2>/dev/null || echo "No data yet"
+          echo "=== Cycle ===" && cat seed_state/cycle_log.json 2>/dev/null || true
+          echo "=== Data ===" && wc -l seed_data/*.jsonl 2>/dev/null || true
