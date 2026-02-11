@@ -1,73 +1,157 @@
-name: OpenCLAW Autonomous Agent 🤖
+name: "🌱 OpenCLAW SEED — Autonomous Growth"
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: "0 */4 * * *"  # Agent cycle every 4 hours
+    - cron: "30 */12 * * *"  # SEED growth every 12 hours
   workflow_dispatch:
     inputs:
       command:
-        description: 'Command to run'
-        required: false
-        default: 'run'
+        description: "Command to run"
+        default: "full"
         type: choice
         options:
-          - run
-          - test
-          - status
-
-permissions:
-  contents: write
+          - full
+          - agent
+          - seed
+          - harvest
 
 jobs:
   agent-cycle:
+    if: github.event.schedule == '0 */4 * * *' || github.event.inputs.command == 'agent' || github.event.inputs.command == 'full'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
+    timeout-minutes: 15
+    env:
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+      STATE_DIR: ./state
     steps:
-      - name: 🔄 Checkout
+      - name: "🔄 Checkout"
         uses: actions/checkout@v4
-      
-      - name: 🐍 Python
+        with:
+          fetch-depth: 0
+
+      - name: "🐍 Python"
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      
-      - name: 📦 Install
-        run: pip install flask
-      
-      - name: 📥 Restore state
-        continue-on-error: true
+          python-version: "3.11"
+
+      - name: "📦 Install"
+        run: pip install -q requests
+
+      - name: "📥 Restore state"
         run: |
           git fetch origin state --depth=1 2>/dev/null || true
           if git show-ref --verify --quiet refs/remotes/origin/state; then
-            git checkout origin/state -- state/ 2>/dev/null || echo "No state"
+            git checkout origin/state -- state/ 2>/dev/null || mkdir -p state
+          else
+            mkdir -p state
           fi
-      
-      - name: 🤖 Run Agent
+
+      - name: "🤖 Run Agent"
+        run: python main.py run
+
+      - name: "💾 Save state"
+        run: |
+          git config user.name "OpenCLAW Bot"
+          git config user.email "openclaw-bot@noreply.github.com"
+          git stash --include-untracked || true
+          git checkout state 2>/dev/null || git checkout --orphan state
+          git rm -rf . 2>/dev/null || true
+          git stash pop 2>/dev/null || true
+          cp -r state/ . 2>/dev/null || true
+          git add state/ 2>/dev/null || true
+          git commit -m "State update $(date -u +%Y-%m-%dT%H:%M)" --allow-empty
+          git push origin state --force
         env:
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          STATE_DIR: state
-        run: python main.py ${{ github.event.inputs.command || 'run' }}
-      
-      - name: 💾 Save state
-        if: always()
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📊 Status"
         run: |
-          git config user.name "OpenCLAW Agent"
-          git config user.email "openclaw@noreply.github.com"
-          git stash 2>/dev/null || true
-          git checkout --orphan state-temp 2>/dev/null || git checkout -b state-temp
-          git rm -rf --cached . 2>/dev/null || true
-          git add state/ -f 2>/dev/null || true
-          git commit -m "🤖 State $(date -u +%Y-%m-%dT%H:%M)" --allow-empty 2>/dev/null || true
-          git push origin HEAD:state --force 2>/dev/null || echo "Skip"
-      
-      - name: 📊 Status
-        if: always()
+          echo "=== State ==="
+          cat state/agent_state.json 2>/dev/null || echo "No state"
+          echo "=== Cycle ==="
+          cat state/last_cycle.json 2>/dev/null || echo "No cycle"
+
+  seed-growth:
+    if: github.event.schedule == '30 */12 * * *' || github.event.inputs.command == 'seed' || github.event.inputs.command == 'full' || github.event.inputs.command == 'harvest'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      SEED_STATE_DIR: ./seed_state
+      SEED_DATA_DIR: ./seed_data
+    steps:
+      - name: "🔄 Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🐍 Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "📦 Install"
+        run: pip install -q requests huggingface_hub
+
+      - name: "📥 Restore seed state"
         run: |
-          echo "=== State ===" && cat state/agent_state.json 2>/dev/null || true
-          echo "=== Cycle ===" && cat state/last_cycle.json 2>/dev/null || true
+          git fetch origin seed-state --depth=1 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/seed-state; then
+            git checkout origin/seed-state -- seed_state/ seed_data/ 2>/dev/null || true
+          fi
+          mkdir -p seed_state seed_data
+
+      - name: "🌱 Run SEED Growth Cycle"
+        run: |
+          python -c "
+          import sys, os, logging
+          sys.path.insert(0, '.')
+          logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+          
+          from seed.growth_engine import GrowthEngine
+          engine = GrowthEngine(
+              hf_token=os.environ.get('HF_TOKEN', ''),
+              state_dir='seed_state',
+              data_dir='seed_data',
+          )
+          results = engine.run_cycle()
+          
+          import json
+          print('\n📊 SEED Results:')
+          print(json.dumps(results, indent=2, default=str))
+          
+          print('\n📊 SEED Status:')
+          print(json.dumps(engine.get_status(), indent=2, default=str))
+          "
+
+      - name: "💾 Save seed state"
+        run: |
+          git config user.name "SEED Bot"
+          git config user.email "seed-bot@noreply.github.com"
+          git stash --include-untracked || true
+          git checkout seed-state 2>/dev/null || git checkout --orphan seed-state
+          git rm -rf . 2>/dev/null || true
+          git stash pop 2>/dev/null || true
+          cp -r seed_state/ . 2>/dev/null || true
+          cp -r seed_data/ . 2>/dev/null || true
+          git add seed_state/ seed_data/ 2>/dev/null || true
+          git commit -m "SEED growth $(date -u +%Y-%m-%dT%H:%M)" --allow-empty
+          git push origin seed-state --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📊 Seed Status"
+        run: |
+          echo "=== SEED Cycle Log ==="
+          cat seed_state/cycle_log.json 2>/dev/null || echo "No cycle log"
+          echo ""
+          echo "=== Growth Log ==="
+          cat seed_state/growth_log.json 2>/dev/null || echo "No growth log"
+          echo ""
+          echo "=== Dataset Size ==="
+          wc -l seed_data/*.jsonl 2>/dev/null || echo "No data yet"
