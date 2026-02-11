@@ -1,0 +1,129 @@
+name: "🔥 SEED GPU Training"
+
+# Runs weekly to check if we have enough data for training
+on:
+  schedule:
+    - cron: "0 3 * * 1"  # Every Monday at 3AM UTC
+  workflow_dispatch:
+    inputs:
+      force_train:
+        description: "Force training even with small dataset"
+        type: boolean
+        default: false
+
+jobs:
+  check-and-train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      SEED_STATE_DIR: ./seed_state
+      SEED_DATA_DIR: ./seed_data
+    steps:
+      - name: "🔄 Checkout"
+        uses: actions/checkout@v4
+
+      - name: "🐍 Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "📦 Install"
+        run: pip install -q requests huggingface_hub
+
+      - name: "📥 Restore seed data"
+        run: |
+          git fetch origin seed-state --depth=1 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/seed-state; then
+            git checkout origin/seed-state -- seed_state/ seed_data/ 2>/dev/null || true
+          fi
+          mkdir -p seed_state seed_data
+
+      - name: "📊 Check readiness"
+        id: check
+        run: |
+          python -c "
+          import sys, os, json
+          sys.path.insert(0, '.')
+          
+          from seed.training.engine import TrainingEngine
+          trainer = TrainingEngine(
+              hf_token=os.environ.get('HF_TOKEN', ''),
+              data_dir='seed_data',
+              state_dir='seed_state',
+          )
+          
+          stage = trainer.get_current_stage()
+          
+          # Count available data
+          from seed.data.harvester import DataHarvester
+          h = DataHarvester('seed_data')
+          sizes = h.get_dataset_size()
+          total = sizes.get('total', 0)
+          needed = stage.get('min_data', 100)
+          
+          ready = total >= needed or '${{ inputs.force_train }}' == 'true'
+          
+          print(f'Stage: {stage[\"stage\"]} ({stage[\"params\"]})')
+          print(f'Data: {total} / {needed} needed')
+          print(f'Ready: {ready}')
+          
+          # Output for next step
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'ready={str(ready).lower()}\n')
+              f.write(f'total_data={total}\n')
+              f.write(f'stage={stage[\"stage\"]}\n')
+              f.write(f'model={stage[\"name\"]}\n')
+          "
+
+      - name: "📤 Upload training data to HF"
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          from seed.training.engine import TrainingEngine
+          trainer = TrainingEngine(
+              hf_token=os.environ.get('HF_TOKEN', ''),
+              data_dir='seed_data',
+              state_dir='seed_state',
+          )
+          trainer.upload_training_data()
+          print('✅ Training data uploaded to HuggingFace')
+          "
+
+      - name: "📓 Generate training notebook"
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          from seed.training.engine import TrainingEngine
+          trainer = TrainingEngine(
+              hf_token=os.environ.get('HF_TOKEN', ''),
+              data_dir='seed_data',
+              state_dir='seed_state',
+          )
+          nb_path = trainer.generate_kaggle_notebook('seed_training.ipynb')
+          script_path = trainer.generate_training_script('train_seed.py')
+          print(f'📓 Notebook: {nb_path}')
+          print(f'📜 Script: {script_path}')
+          print()
+          print('=== TO TRAIN MANUALLY ===')
+          print('1. Go to https://kaggle.com/kernels')
+          print('2. Upload seed_training.ipynb')
+          print('3. Enable GPU accelerator')
+          print('4. Add HF_TOKEN secret')
+          print('5. Run all cells')
+          print()
+          print('=== OR use HuggingFace AutoTrain ===')
+          print(f'Model: {trainer.get_current_stage()[\"name\"]}')
+          print(f'Dataset: Agnuxo/OpenCLAW-SEED-data')
+          "
+
+      - name: "📊 Status"
+        run: |
+          echo "Ready: ${{ steps.check.outputs.ready }}"
+          echo "Data: ${{ steps.check.outputs.total_data }} entries"
+          echo "Stage: ${{ steps.check.outputs.stage }}"
+          echo "Model: ${{ steps.check.outputs.model }}"
