@@ -1,7 +1,7 @@
 """
-OpenCLAW Agent — HuggingFace Spaces Dashboard
-================================================
-Gradio interface with background agent loop.
+OpenCLAW Agent + SEED — HuggingFace Spaces Dashboard
+======================================================
+Gradio interface with background agent loop and autonomous model growth.
 """
 import os
 import sys
@@ -13,7 +13,6 @@ import gradio as gr
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Setup path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.config import Config
@@ -21,192 +20,218 @@ from core.agent import OpenCLAWAgent, AgentState
 from core.strategy import StrategyReflector
 from research.arxiv_fetcher import ArxivFetcher
 
-# Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("openclaw")
 
 STATE_DIR = Path(os.getenv("STATE_DIR", "state"))
+SEED_STATE_DIR = Path(os.getenv("SEED_STATE_DIR", "seed_state"))
+SEED_DATA_DIR = Path(os.getenv("SEED_DATA_DIR", "seed_data"))
 
-# Background agent thread
 agent_running = False
 cycle_log = []
+seed_log = []
 
 
+# ==========================================================================
+# BACKGROUND AGENT + SEED GROWTH
+# ==========================================================================
 def run_background_agent():
-    """Background thread for autonomous operation."""
-    global agent_running, cycle_log
+    """Background thread: agent + SEED growth combined."""
+    global agent_running, cycle_log, seed_log
     agent_running = True
     interval = int(os.getenv("DAEMON_INTERVAL", "3600"))
     
-    while agent_running:
+    agent = OpenCLAWAgent(state_dir=str(STATE_DIR))
+    
+    # Initialize SEED
+    seed_engine = None
+    try:
+        from seed.growth_engine import GrowthEngine
+        seed_engine = GrowthEngine(
+            hf_token=os.environ.get("HF_TOKEN", ""),
+            state_dir=str(SEED_STATE_DIR),
+            data_dir=str(SEED_DATA_DIR),
+        )
+        logger.info("🌱 SEED Growth Engine initialized")
+    except Exception as e:
+        logger.warning(f"SEED init failed (will retry): {e}")
+    
+    cycle_num = 0
+    while True:
+        cycle_num += 1
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # === AGENT CYCLE ===
         try:
-            config = Config.from_env()
-            agent = OpenCLAWAgent(config)
             results = agent.run_cycle()
-            
-            cycle_log.append({
-                "time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                "cycle": results.get("cycle", "?"),
-                "actions": len(results.get("actions", [])),
-                "details": results.get("actions", [])
-            })
-            # Keep last 50 entries
-            cycle_log = cycle_log[-50:]
-            
+            entry = f"[{now}] Agent cycle #{cycle_num}: " + ", ".join(
+                f"{a['task']}={a['status']}" for a in results.get("actions", [])
+            )
+            cycle_log.append(entry)
+            logger.info(entry)
         except Exception as e:
-            logger.error(f"Cycle error: {e}")
-            cycle_log.append({
-                "time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                "error": str(e)
-            })
+            cycle_log.append(f"[{now}] Agent error: {e}")
+            logger.error(f"Agent cycle error: {e}")
+        
+        # === SEED GROWTH (every 6th cycle = ~6 hours) ===
+        if seed_engine and cycle_num % 6 == 0:
+            try:
+                logger.info("🌱 Running SEED growth cycle...")
+                seed_results = seed_engine.run_cycle()
+                seed_entry = (
+                    f"[{now}] SEED cycle #{seed_results.get('cycle', '?')}: "
+                    f"stage={seed_engine.cycle_log.get('current_stage', '?')}, "
+                    f"data={seed_engine.cycle_log.get('total_data_harvested', 0)}"
+                )
+                seed_log.append(seed_entry)
+                logger.info(seed_entry)
+            except Exception as e:
+                seed_log.append(f"[{now}] SEED error: {e}")
+                logger.error(f"SEED cycle error: {e}")
+        elif seed_engine is None:
+            # Retry SEED init
+            try:
+                from seed.growth_engine import GrowthEngine
+                seed_engine = GrowthEngine(
+                    hf_token=os.environ.get("HF_TOKEN", ""),
+                    state_dir=str(SEED_STATE_DIR),
+                    data_dir=str(SEED_DATA_DIR),
+                )
+            except Exception:
+                pass
+        
+        # Keep logs bounded
+        cycle_log[:] = cycle_log[-200:]
+        seed_log[:] = seed_log[-100:]
         
         time.sleep(interval)
 
 
-def get_status():
-    """Get current agent status as formatted text."""
-    try:
-        config = Config.from_env()
-        agent = OpenCLAWAgent(config)
-        status = agent.get_status()
-        
-        lines = [
-            "🤖 **OpenCLAW Autonomous Agent**",
-            f"Advanced AI Systems Laboratory, Madrid",
-            "",
-            f"📊 **Statistics:**",
-            f"  • Cycles completed: {status['cycle_count']}",
-            f"  • Posts created: {status['posts_created']}",
-            f"  • Engagements: {status['engagement_count']}",
-            f"  • Papers shared: {status['papers_posted']}",
-            "",
-            f"🔧 **Services:** {', '.join(status['services']) or 'None configured'}",
-            f"🧠 **LLM:** {'✅ Online' if status['llm_available'] else '⚠️ Offline'}",
-            f"⚠️  **Errors:** {status['errors_count']}",
-            "",
-            f"🕐 **Last Research:** {status['last_research'] or 'Never'}",
-            f"📝 **Last Post:** {status['last_post'] or 'Never'}",
-            f"💬 **Last Engage:** {status['last_engage'] or 'Never'}",
-        ]
-        return "\n".join(lines)
-    except Exception as e:
-        return f"Error getting status: {e}"
+# Start background
+bg_thread = threading.Thread(target=run_background_agent, daemon=True)
+bg_thread.start()
+logger.info("🚀 Background agent + SEED started")
 
+
+# ==========================================================================
+# DASHBOARD FUNCTIONS
+# ==========================================================================
+def get_status():
+    state_file = STATE_DIR / "agent_state.json"
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text())
+            return json.dumps(state, indent=2)
+        except Exception:
+            pass
+    return json.dumps({
+        "status": "running" if agent_running else "starting",
+        "message": "Agent initializing...",
+    }, indent=2)
+
+def get_activity():
+    return "\n".join(cycle_log[-50:]) if cycle_log else "No activity yet — first cycle in progress..."
 
 def get_papers():
-    """Get cached research papers."""
-    try:
-        fetcher = ArxivFetcher()
-        papers = fetcher.get_all_papers()
-        
-        lines = [f"📚 **{len(papers)} papers available:**\n"]
-        for p in papers:
-            lines.append(f"**{p.title}**")
-            lines.append(f"  Authors: {', '.join(p.authors)}")
-            lines.append(f"  URL: {p.url}")
-            lines.append("")
-        return "\n".join(lines)
-    except Exception as e:
-        return f"Error fetching papers: {e}"
-
-
-def get_cycle_log():
-    """Get recent cycle log."""
-    if not cycle_log:
-        return "No cycles completed yet. Agent will run its first cycle within 1 hour."
-    
-    lines = ["📋 **Recent Agent Activity:**\n"]
-    for entry in reversed(cycle_log[-20:]):
-        if "error" in entry:
-            lines.append(f"❌ {entry['time']}: Error - {entry['error']}")
-        else:
-            lines.append(f"✅ {entry['time']}: Cycle #{entry['cycle']} — {entry['actions']} actions")
-            for a in entry.get("details", []):
-                status = "✅" if a.get("status") == "ok" else "⚠️"
-                lines.append(f"    {status} {a.get('task')}: {a.get('status')}")
-    
-    return "\n".join(lines)
-
-
-def run_manual_cycle():
-    """Manually trigger an agent cycle."""
-    try:
-        config = Config.from_env()
-        agent = OpenCLAWAgent(config)
-        results = agent.run_cycle()
-        
-        lines = [f"✅ Cycle #{results['cycle']} completed!\n"]
-        for a in results.get("actions", []):
-            status = "✅" if a.get("status") == "ok" else "⚠️"
-            lines.append(f"{status} {a.get('task')}: {json.dumps(a, indent=2)}")
-        
-        return "\n".join(lines)
-    except Exception as e:
-        return f"❌ Error: {e}"
-
+    fetcher = ArxivFetcher()
+    papers = fetcher.known_papers
+    lines = []
+    for p in papers:
+        lines.append(f"📄 {p['title']}")
+        lines.append(f"   ID: {p['arxiv_id']} | Year: {p.get('year', '?')}")
+        lines.append(f"   {p.get('abstract', '')[:150]}...")
+        lines.append("")
+    return "\n".join(lines) if lines else "No papers loaded yet."
 
 def get_strategy():
-    """Run strategy analysis."""
+    reflector = StrategyReflector(state_dir=str(STATE_DIR))
+    report = reflector.analyze()
+    return json.dumps(report, indent=2)
+
+def get_seed_status():
+    """Get SEED growth status."""
     try:
-        reflector = StrategyReflector(str(STATE_DIR))
-        report = reflector.analyze()
-        
-        lines = [
-            "🧠 **Strategy Analysis**\n",
-            "**Metrics:**"
-        ]
-        for k, v in report["metrics"].items():
-            lines.append(f"  • {k}: {v}")
-        
-        lines.append("\n**Insights:**")
-        for i in report["insights"]:
-            lines.append(f"  💡 {i}")
-        
-        lines.append("\n**Recommended Actions:**")
-        for a in report["strategy"]["actions"]:
-            lines.append(f"  🎯 {a}")
-        
-        return "\n".join(lines)
+        from seed.growth_engine import GrowthEngine
+        engine = GrowthEngine(
+            hf_token=os.environ.get("HF_TOKEN", ""),
+            state_dir=str(SEED_STATE_DIR),
+            data_dir=str(SEED_DATA_DIR),
+        )
+        status = engine.get_status()
+        return json.dumps(status, indent=2, default=str)
+    except Exception as e:
+        return json.dumps({"status": "initializing", "note": str(e)}, indent=2)
+
+def get_seed_log():
+    return "\n".join(seed_log[-50:]) if seed_log else "SEED not yet active — first growth cycle pending..."
+
+def trigger_harvest():
+    """Manually trigger data harvest."""
+    try:
+        from seed.data.harvester import DataHarvester
+        h = DataHarvester(str(SEED_DATA_DIR))
+        stats = h.harvest_all()
+        return f"✅ Harvested {stats['total']} entries:\n" + json.dumps(stats, indent=2)
+    except Exception as e:
+        return f"❌ Harvest failed: {e}"
+
+def trigger_cycle():
+    try:
+        agent = OpenCLAWAgent(state_dir=str(STATE_DIR))
+        results = agent.run_cycle()
+        return json.dumps(results, indent=2, default=str)
     except Exception as e:
         return f"Error: {e}"
 
 
-# Start background agent
-bg_thread = threading.Thread(target=run_background_agent, daemon=True)
-bg_thread.start()
-logger.info("🤖 Background agent started")
-
-# Gradio Interface
-with gr.Blocks(title="OpenCLAW Agent", theme=gr.themes.Monochrome()) as demo:
+# ==========================================================================
+# GRADIO INTERFACE
+# ==========================================================================
+with gr.Blocks(title="🌱 OpenCLAW SEED — Self-Evolving Agent", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
-    # 🤖 OpenCLAW — Autonomous Multi-Agent Scientific Research Platform
-    **Advanced AI Systems Laboratory, Madrid, Spain**  
-    *Francisco Angulo de Lafuente — Winner NVIDIA & LlamaIndex Developer Contest 2024*
+    # 🌱 OpenCLAW SEED — Self-Evolving Autonomous Agent
+    *A seed that grows into a tree. Autonomous 24/7 research agent with self-training AI.*
     
-    [GitHub](https://github.com/Agnuxo1) | [Scholar](https://scholar.google.com/citations?user=6nOpJ9IAAAAJ) | [ArXiv](https://arxiv.org/search/cs?searchtype=author&query=de+Lafuente,+F+A) | [Moltbook](https://www.moltbook.com/u/OpenCLAW-Neuromorphic)
+    **By Francisco Angulo de Lafuente** | [GitHub](https://github.com/Agnuxo1) | [Scholar](https://scholar.google.com/citations?user=6nOpJ9IAAAAJ)
     """)
     
-    with gr.Tab("📊 Status"):
-        status_output = gr.Markdown(get_status())
-        gr.Button("🔄 Refresh").click(fn=get_status, outputs=status_output)
+    with gr.Tab("📊 Agent Status"):
+        status_box = gr.Code(label="Agent State", language="json")
+        gr.Button("Refresh").click(get_status, outputs=status_box)
+        demo.load(get_status, outputs=status_box)
     
-    with gr.Tab("📋 Activity Log"):
-        log_output = gr.Markdown(get_cycle_log())
-        gr.Button("🔄 Refresh").click(fn=get_cycle_log, outputs=log_output)
+    with gr.Tab("📝 Activity Log"):
+        log_box = gr.Textbox(label="Recent Activity", lines=20, max_lines=30)
+        gr.Button("Refresh").click(get_activity, outputs=log_box)
+        demo.load(get_activity, outputs=log_box)
     
-    with gr.Tab("📚 Research Papers"):
-        papers_output = gr.Markdown(get_papers())
-        gr.Button("🔄 Refresh").click(fn=get_papers, outputs=papers_output)
+    with gr.Tab("🌱 SEED Growth"):
+        gr.Markdown("""
+        ### Self-Evolving Model Growth
+        SEED harvests knowledge, trains itself, and grows autonomously.
+        
+        **Growth stages:** GERMINATION (0.5B) → SEEDLING (1B) → SAPLING (3B) → YOUNG_TREE (7B) → MATURE_TREE (13B+)
+        """)
+        seed_status_box = gr.Code(label="SEED Status", language="json")
+        seed_log_box = gr.Textbox(label="Growth Log", lines=10)
+        with gr.Row():
+            gr.Button("🔄 Refresh Status").click(get_seed_status, outputs=seed_status_box)
+            gr.Button("🌾 Harvest Data Now").click(trigger_harvest, outputs=seed_log_box)
+        demo.load(get_seed_status, outputs=seed_status_box)
+    
+    with gr.Tab("📄 Research Papers"):
+        papers_box = gr.Textbox(label="Known Papers", lines=20, max_lines=30)
+        gr.Button("Refresh").click(get_papers, outputs=papers_box)
+        demo.load(get_papers, outputs=papers_box)
     
     with gr.Tab("🧠 Strategy"):
-        strategy_output = gr.Markdown(get_strategy())
-        gr.Button("🔄 Analyze").click(fn=get_strategy, outputs=strategy_output)
+        strategy_box = gr.Code(label="Strategy Analysis", language="json")
+        gr.Button("Analyze").click(get_strategy, outputs=strategy_box)
     
     with gr.Tab("⚡ Manual Trigger"):
-        gr.Markdown("Manually trigger an agent cycle:")
-        trigger_output = gr.Markdown("")
-        gr.Button("🚀 Run Cycle Now").click(fn=run_manual_cycle, outputs=trigger_output)
-
+        trigger_box = gr.Code(label="Cycle Results", language="json")
+        gr.Button("🤖 Run Agent Cycle").click(trigger_cycle, outputs=trigger_box)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
