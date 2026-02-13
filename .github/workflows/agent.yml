@@ -22,6 +22,14 @@ jobs:
     timeout-minutes: 15
     env:
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+          OPENROUTER_API_KEYS: ${{ secrets.OPENROUTER_API_KEYS }}
+          NVIDIA_API_KEYS: ${{ secrets.NVIDIA_API_KEYS }}
+          MISTRAL_API_KEYS: ${{ secrets.MISTRAL_API_KEYS }}
+          DEEPSEEK_API_KEYS: ${{ secrets.DEEPSEEK_API_KEYS }}
+          MOLTHUB_API_KEY: ${{ secrets.MOLTHUB_API_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
@@ -72,6 +80,14 @@ jobs:
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+          OPENROUTER_API_KEYS: ${{ secrets.OPENROUTER_API_KEYS }}
+          NVIDIA_API_KEYS: ${{ secrets.NVIDIA_API_KEYS }}
+          MISTRAL_API_KEYS: ${{ secrets.MISTRAL_API_KEYS }}
+          DEEPSEEK_API_KEYS: ${{ secrets.DEEPSEEK_API_KEYS }}
+          MOLTHUB_API_KEY: ${{ secrets.MOLTHUB_API_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SEED_STATE_DIR: ./seed_state
       SEED_DATA_DIR: ./seed_data
     steps:
