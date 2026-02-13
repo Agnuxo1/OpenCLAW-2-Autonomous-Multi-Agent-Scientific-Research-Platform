@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+import time
 
 logger = logging.getLogger("seed.harvester")
 
@@ -229,52 +230,92 @@ class DataHarvester:
     # =========================================================================
     # SOURCE 3: Semantic Scholar (Free API)
     # =========================================================================
-    def harvest_semantic_scholar(self, queries: list[str] = None) -> int:
-        """Harvest from Semantic Scholar's free API."""
+        def harvest_semantic_scholar(self, queries: list[str] = None) -> int:
+        """Harvest from Semantic Scholar's free API with exponential backoff."""
         if queries is None:
             queries = ["neuromorphic AGI", "self-improving neural network", 
                        "physics simulation deep learning"]
         
         entries = []
         for query in queries[:5]:
-            try:
-                encoded = urllib.parse.quote(query)
-                url = (f"https://api.semanticscholar.org/graph/v1/paper/search?"
-                       f"query={encoded}&limit=10&fields=title,abstract,authors,year,citationCount")
-                req = urllib.request.Request(url, headers={"User-Agent": "SEED-Harvester/1.0"})
-                
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    data = json.loads(resp.read().decode())
-                
-                for paper in data.get("data", []):
-                    title = paper.get("title", "")
-                    abstract = paper.get("abstract", "")
-                    if not abstract or not self._is_new(title):
+            # Exponential backoff: try up to 3 times with increasing delays
+            for attempt in range(3):
+                try:
+                    encoded = urllib.parse.quote(query)
+                    url = (f"https://api.semanticscholar.org/graph/v1/paper/search?"
+                           f"query={encoded}&limit=10&fields=title,abstract,authors,year,citationCount")
+                    req = urllib.request.Request(url, headers={"User-Agent": "SEED-Harvester/1.0 (github.com/Agnuxo1)"})
+                    
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        data = json.loads(resp.read().decode())
+                    
+                    for paper in data.get("data", []):
+                        title = paper.get("title", "")
+                        abstract = paper.get("abstract", "")
+                        if not abstract or not self._is_new(title):
+                            continue
+                        authors = ", ".join(a.get("name", "") for a in paper.get("authors", [])[:5])
+                        entries.append({
+                            "instruction": f"Summarize the key findings of this research paper",
+                            "input": f"Title: {title}\nAuthors: {authors}\nAbstract: {abstract[:500]}",
+                            "output": f"This paper by {authors} investigates {title.lower()}. {abstract[:300]}",
+                            "metadata": {"source": "semantic_scholar", "year": paper.get("year"),
+                                         "citations": paper.get("citationCount", 0)},
+                        })
+                    # Success — wait 3s between queries to respect rate limits
+                    time.sleep(3)
+                    break  # Success, move to next query
+                    
+                except urllib.error.HTTPError as e:
+                    if e.code == 429:
+                        wait = (attempt + 1) * 5  # 5s, 10s, 15s
+                        logger.warning(f"Semantic Scholar '{query}': 429 rate limit, waiting {wait}s (attempt {attempt+1}/3)")
+                        time.sleep(wait)
                         continue
-                    
-                    authors = [a.get("name", "") for a in paper.get("authors", [])[:3]]
-                    
-                    entries.append({
-                        "instruction": "Explain this research and its significance for AGI.",
-                        "input": f"Title: {title}\nAuthors: {', '.join(authors)}\nYear: {paper.get('year', '?')}\nCitations: {paper.get('citationCount', 0)}",
-                        "output": f"The paper '{title}' ({paper.get('year', '?')}) explores: {abstract[:400]}",
-                        "source": "semantic_scholar",
-                        "topic": query,
-                    })
-                    
-            except Exception as e:
-                logger.warning(f"Semantic Scholar '{query}': {e}")
+                    else:
+                        logger.warning(f"Semantic Scholar '{query}': {e}")
+                        break
+                except Exception as e:
+                    logger.warning(f"Semantic Scholar '{query}': {e}")
+                    break
+        
+        # Fallback: try CORE.ac.uk API if Semantic Scholar yielded nothing
+        if not entries:
+            entries = self._harvest_core_api(queries[:3])
         
         if entries:
             self._append_data("semantic_scholar.jsonl", entries)
-            logger.info(f"Harvested {len(entries)} from Semantic Scholar")
-        
-        self._save_seen()
+            logger.info(f"Harvested {len(entries)} from Semantic Scholar/CORE")
         return len(entries)
-    
-    # =========================================================================
-    # SOURCE 4: Own Research (GitHub repos as training data)
-    # =========================================================================
+
+    def _harvest_core_api(self, queries: list[str]) -> list:
+        """Fallback harvester using CORE.ac.uk API (no auth needed for search)."""
+        entries = []
+        for query in queries:
+            try:
+                encoded = urllib.parse.quote(query)
+                url = f"https://api.core.ac.uk/v3/search/works?q={encoded}&limit=5"
+                req = urllib.request.Request(url, headers={"User-Agent": "SEED-Harvester/1.0"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode())
+                for item in data.get("results", []):
+                    title = item.get("title", "")
+                    abstract = item.get("abstract", "")
+                    if not abstract or not self._is_new(title):
+                        continue
+                    authors = ", ".join(a.get("name", "") for a in item.get("authors", [])[:5])
+                    entries.append({
+                        "instruction": "Summarize this research paper",
+                        "input": f"Title: {title}\nAuthors: {authors}\nAbstract: {abstract[:500]}",
+                        "output": f"Research by {authors}: {abstract[:300]}",
+                        "metadata": {"source": "core_ac_uk"},
+                    })
+                time.sleep(2)
+            except Exception as e:
+                logger.warning(f"CORE.ac.uk '{query}': {e}")
+        return entries
+
+
     def harvest_own_research(self, github_user: str = "Agnuxo1") -> int:
         """Harvest training data from our own GitHub repos."""
         entries = []
