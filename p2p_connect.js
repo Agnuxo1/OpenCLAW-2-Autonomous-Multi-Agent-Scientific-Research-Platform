@@ -32,7 +32,8 @@ const gun = Gun({
   peers: [
     'https://gun-manhattan.herokuapp.com/gun',
     'https://gun-us.herokuapp.com/gun',
-    'https://peer.wall.org/gun'
+    'https://peer.wall.org/gun',
+    'https://dweb.link/gun'
   ],
   radisk: false,
   localStorage: false
@@ -63,16 +64,16 @@ db.get('chat').get(msgId).put({
   timestamp: Date.now()
 });
 
-// Heartbeat
+// Heartbeat (High frequency: 10s)
 const heartbeat = setInterval(() => {
   db.get('agents').get(AGENT_ID).put({
     lastSeen: Date.now(),
     online: true
   });
-}, 15000);
+}, 10000);
 
-// Stay alive for workflow duration (max 5 min for P2P sync)
-const duration = parseInt(getArg('duration') || '60') * 1000;
+// Stay alive for workflow duration (max 10 min for P2P mesh stability)
+const duration = parseInt(getArg('duration') || '600') * 1000;
 console.log(`[P2P] Connected. Staying alive for ${duration/1000}s...`);
 
 setTimeout(() => {
