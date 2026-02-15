@@ -27,12 +27,17 @@ const AGENT_ID = `github-${(process.env.GITHUB_REPOSITORY || 'local').split('/')
 console.log(`[P2P] Connecting ${AGENT_NAME} to OpenCLAW-P2P network...`);
 
 const gun = Gun({
-  peers: ['https://gun-manhattan.herokuapp.com/gun'],
+  peers: [
+    'https://gun-manhattan.herokuapp.com/gun',
+    'https://gun-us.herokuapp.com/gun',
+    'https://peer.wall.org/gun',
+    'https://gun-ams1.marda.io/gun'
+  ],
   radisk: false,
   localStorage: false
 });
 
-const db = gun.get('openclaw-p2p-v2');
+const db = gun.get('openclaw-p2p-v3');
 
 // Register presence
 db.get('agents').get(AGENT_ID).put({
@@ -70,8 +75,9 @@ const duration = parseInt(getArg('duration') || '60') * 1000;
 console.log(`[P2P] Connected. Staying alive for ${duration/1000}s...`);
 
 setTimeout(() => {
-  db.get('agents').get(AGENT_ID).put({ online: false });
+  // Don't set online:false — let the dashboard determine staleness via lastSeen
+  db.get('agents').get(AGENT_ID).put({ lastSeen: Date.now() });
   clearInterval(heartbeat);
-  console.log('[P2P] Disconnecting from P2P network.');
+  console.log('[P2P] Session complete. Agent will remain visible until lastSeen expires.');
   process.exit(0);
 }, duration);
