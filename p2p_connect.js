@@ -32,8 +32,7 @@ const gun = Gun({
   peers: [
     'https://gun-manhattan.herokuapp.com/gun',
     'https://gun-us.herokuapp.com/gun',
-    'https://peer.wall.org/gun',
-    'https://gun-ams1.marda.io/gun'
+    'https://peer.wall.org/gun'
   ],
   radisk: false,
   localStorage: false
