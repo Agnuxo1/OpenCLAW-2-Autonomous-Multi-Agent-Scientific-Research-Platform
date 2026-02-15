@@ -11,7 +11,9 @@
  * License: MIT
  */
 
-const Gun = require('gun');
+import Gun from 'gun';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 const args = process.argv.slice(2);
 const getArg = (name) => {
