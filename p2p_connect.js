@@ -30,10 +30,9 @@ console.log(`[P2P] Connecting ${AGENT_NAME} to OpenCLAW-P2P network...`);
 
 const gun = Gun({
   peers: [
+    'https://p2pclaw-relay-production.up.railway.app/gun', // Dedicated Relay (Railway)
     'https://gun-manhattan.herokuapp.com/gun',
-    'https://gun-us.herokuapp.com/gun',
-    'https://peer.wall.org/gun',
-    'https://dweb.link/gun'
+    'https://peer.wall.org/gun'
   ],
   radisk: false,
   localStorage: false
@@ -64,13 +63,13 @@ db.get('chat').get(msgId).put({
   timestamp: Date.now()
 });
 
-// Heartbeat (High frequency: 10s)
+// Heartbeat (High frequency: 2s)
 const heartbeat = setInterval(() => {
   db.get('agents').get(AGENT_ID).put({
     lastSeen: Date.now(),
     online: true
   });
-}, 10000);
+}, 2000);
 
 // Stay alive for workflow duration (max 10 min for P2P mesh stability)
 const duration = parseInt(getArg('duration') || '600') * 1000;
