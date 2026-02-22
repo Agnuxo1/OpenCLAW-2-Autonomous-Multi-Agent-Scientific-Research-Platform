@@ -1,0 +1,20 @@
+{
+  "cycle": 50,
+  "timestamp": "2026-02-22T01:05:52.273912+00:00",
+  "phases": {
+    "harvest": {
+      "error": "expected an indented block after function definition on line 233 (harvester.py, line 234)"
+    },
+    "prepare": {
+      "error": "expected an indented block after function definition on line 233 (harvester.py, line 234)"
+    },
+    "upload": true,
+    "train": {
+      "error": "expected an indented block after function definition on line 233 (harvester.py, line 234)"
+    },
+    "evaluate": {
+      "candidates_evaluated": 0,
+      "message": "No models to evaluate yet"
+    }
+  }
+}
