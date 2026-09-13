@@ -1,0 +1,62 @@
+{
+  "cycle": 1034,
+  "timestamp": "2026-09-13T01:45:34.482643+00:00",
+  "phases": {
+    "harvest": {
+      "timestamp": "2026-09-13T01:45:34.525911+00:00",
+      "arxiv": 0,
+      "agent_logs": 0,
+      "semantic_scholar": 0,
+      "own_research": 0,
+      "total": 0
+    },
+    "prepare": {
+      "dataset_path": "seed_data/training_dataset.jsonl",
+      "sizes": {
+        "semantic_scholar.jsonl": 71,
+        "training_dataset.jsonl": 594,
+        "own_research.jsonl": 158,
+        "arxiv_training.jsonl": 342,
+        "bootstrap_knowledge.jsonl": 23,
+        "total": 1188
+      }
+    },
+    "upload": true,
+    "train": {
+      "script_generated": "seed_state/train_seed.py",
+      "notebook_generated": "seed_state/seed_training.ipynb",
+      "current_stage": {
+        "name": "Qwen/Qwen2.5-0.5B-Instruct",
+        "params": "0.5B",
+        "stage": "GERMINATION",
+        "min_data": 500,
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "epochs": 2,
+        "batch_size": 4,
+        "lr": 0.0001
+      },
+      "upgrade_available": true,
+      "autotrain_config": {
+        "task": "text_generation",
+        "base_model": "Qwen/Qwen2.5-0.5B-Instruct",
+        "dataset": "Agnuxo/OpenCLAW-SEED-data",
+        "text_column": "text",
+        "learning_rate": 0.0001,
+        "num_epochs": 2,
+        "batch_size": 4,
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "use_peft": true,
+        "quantization": null,
+        "push_to_hub": true,
+        "hub_model_id": "Agnuxo/OpenCLAW-SEED-0.5B"
+      },
+      "ready_to_train": true
+    },
+    "evaluate": {
+      "candidates_evaluated": 0,
+      "message": "No models to evaluate yet"
+    }
+  }
+}
